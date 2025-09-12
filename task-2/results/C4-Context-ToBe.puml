@@ -1,0 +1,32 @@
+@startuml C4_Context_ToBe
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title To‑Be C4 — System Context: Ежедневная выгрузка прайс‑листов
+
+Person(b2b, "B2B клиент", "Получает прайс‑лист")
+
+System_Boundary(k8s, "Kubernetes кластер") {
+  System(cron, "Kubernetes CronJob", "Планировщик: 0 6 * * *")
+  System(job, "Kubernetes Job", "Однократный запуск контейнера")
+  System(priceExporter, "Batch Price Export", "Контейнер/сервис, генерирует CSV/XLS")
+  SystemDb(pg, "PostgreSQL", "Таблицы: products, categories, clients, client_prices")
+  System_Ext(storage, "Объектное хранилище (S3/MinIO) / PVC", "Хранение файлов прайс‑листов")
+  System(portal, "B2B Портал", "Выдаёт ссылку/файл клиенту")
+  System(mail, "Email‑сервис", "Рассылка прайс‑листов")
+  System_Ext(obs, "Наблюдаемость", "Логи: ELK/Loki; Метрики: Prometheus/Grafana; Алерты: Alertmanager")
+}
+
+Rel(cron, job, "Создаёт Job ежедневно (06:00)")
+Rel(job, priceExporter, "Запуск контейнера")
+Rel(priceExporter, pg, "Чтение данных (JDBC/SQL join)", "TCP/5432")
+Rel(priceExporter, storage, "Запись CSV/XLS файлов")
+Rel(priceExporter, obs, "stdout / /metrics")
+Rel(portal, storage, "Чтение файла")
+Rel(mail, storage, "Чтение файла")
+Rel(b2b, portal, "Скачивание прайс‑листа")
+Rel(mail, b2b, "Email с вложением/ссылкой")
+
+footer © To‑Be контекст: CronJob создаёт Job → запускается контейнер экспорта, читающий из PostgreSQL и складывающий CSV/XLS в хранилище. Портал и email‑сервис берут файл из хранилища. Логи/метрики идут в стек наблюдаемости.
+@enduml
+
+

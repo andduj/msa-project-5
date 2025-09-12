@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exporter-config
+  namespace: analytics
+data:
+  OUTPUT_PATH: "/exports/shipments.csv"
+  TABLE: "shipments"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: exporter-secret
+  namespace: analytics
+type: Opaque
+stringData:
+  PGHOST: "postgres"
+  PGPORT: "5432"
+  PGDATABASE: "appdb"
+  PGUSER: "app"
+  PGPASSWORD: "app"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: export-pvc
+  namespace: analytics
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: shipments-export
+  namespace: analytics
+spec:
+  schedule: "0 20 * * *" # ежедневно в 20:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: exporter
+              image: exporter:latest
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: exporter-secret
+                - configMapRef:
+                    name: exporter-config
+              volumeMounts:
+                - name: exports
+                  mountPath: /exports
+          volumes:
+            - name: exports
+              persistentVolumeClaim:
+                claimName: export-pvc
+
+

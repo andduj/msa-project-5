@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: analytics
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pg-secret
+  namespace: analytics
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: app
+  POSTGRES_USER: app
+  POSTGRES_DB: appdb
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pg-pvc
+  namespace: analytics
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pg-init-sql
+  namespace: analytics
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS shipments(
+      id SERIAL PRIMARY KEY,
+      client_id INT,
+      origin TEXT,
+      destination TEXT,
+      created_at TIMESTAMP DEFAULT now()
+    );
+    INSERT INTO shipments(client_id, origin, destination)
+    SELECT (random()*1000)::int, 'A', 'B' FROM generate_series(1, 1000);
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: analytics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pg-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pg-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: pg-secret
+                  key: POSTGRES_DB
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pg-pvc
+        - name: init
+          configMap:
+            name: pg-init-sql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: analytics
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+
