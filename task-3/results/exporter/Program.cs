@@ -31,20 +31,20 @@ var connString = $"Host={host};Port={port};Database={database};Username={user};P
 await using var conn = new NpgsqlConnection(connString);
 await conn.OpenAsync();
 
-// Поддержка крупной таблицы: курсор + COPY TO STDOUT CSV
+// COPY TO STDOUT CSV через текстовый экспорт (правильный API Npgsql)
 var sql = $"COPY (SELECT * FROM {table}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, ENCODING 'UTF8')";
 
 Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 await using var writer = new StreamWriter(outputPath, false, new UTF8Encoding(false));
 
-await using var cmd = new NpgsqlCommand(sql, conn);
-await using var reader = await cmd.ExecuteReaderAsync();
-
-char[] buffer = new char[8192];
-int read;
-while ((read = await reader.GetTextReader(0).ReadAsync(buffer, 0, buffer.Length)) > 0)
+using (var copyReader = await conn.BeginTextExportAsync(sql))
 {
-    await writer.WriteAsync(buffer, 0, read);
+    char[] buffer = new char[8192];
+    int read;
+    while ((read = await copyReader.ReadAsync(buffer, 0, buffer.Length)) > 0)
+    {
+        await writer.WriteAsync(buffer, 0, read);
+    }
 }
 
 Console.WriteLine("Export finished successfully");
