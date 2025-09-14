@@ -1,0 +1,28 @@
+@startuml ToBe_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title TradeWare To‑Be — System Context (Spring Batch как ETL)
+
+Person(user, "Сотрудник склада", "Загружает отчёты CSV через UI")
+
+System_Boundary(gcp, "GCP") {
+  System(web, "Web UI", "Angular", "Интерфейс загрузки и контроля статуса")
+  System(monolith, "Монолит (WildFly/Java)", "REST API", "Принимает файл, кладёт в GCS, вызывает ETL")
+  System(gcs, "Google Cloud Storage", "Хранилище файлов CSV")
+  SystemDb(pg, "PostgreSQL", "Номенклатура и JobRepository (BATCH_*)")
+  System(batch, "Batch ETL Service", "Spring Boot + Spring Batch", "Валидация, обогащение, запись в БД")
+  System(ops, "Observability", "Prometheus/Grafana, ELK/Loki, OTel", "Метрики/Логи/Трейсы/Алерты")
+  System(cron, "K8s CronJob", "0 2 * * *", "Ночные пакетные обработки")
+}
+
+Rel(user, web, "Загружает CSV, смотрит статус")
+Rel(web, monolith, "Отправка файла", "HTTP/JSON")
+Rel(monolith, gcs, "Сохраняет файл")
+Rel(monolith, batch, "Стартует Job (с параметрами)", "HTTP")
+Rel(cron, batch, "Плановый запуск Jobs")
+Rel(batch, gcs, "Чтение CSV")
+Rel(batch, pg, "Валидация/джойны/запись", "JDBC")
+Rel(batch, ops, "Метрики/Логи/Трейсы")
+
+@enduml
+

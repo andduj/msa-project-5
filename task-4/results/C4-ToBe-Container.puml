@@ -1,0 +1,27 @@
+@startuml ToBe_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title TradeWare To‑Be — Container View (Spring Batch как ETL)
+
+Person(user, "Сотрудник склада")
+System_Boundary(cluster, "GCP / K8s") {
+  Container(web, "Web UI", "Angular", "Загрузка CSV, статус")
+  Container(monolith, "Монолит", "Java 11 / WildFly", "REST API, валидация, приём файла")
+  ContainerDb(pg, "PostgreSQL", "Результирующие таблицы + BATCH_* метаданные")
+  Container(gcs, "GCS", "Object Storage", "Исходные CSV")
+  Container(batch, "Batch ETL", "Spring Boot + Spring Batch", "Jobs/Steps/Chunks, Retry/Skip, Partitioning")
+  Container(cron, "K8s CronJob", "K8s", "Плановый запуск jobs")
+  Container(obs, "Observability", "Prometheus, Grafana, ELK, OTel", "Метрики/Логи/Трейсы")
+}
+
+Rel(user, web, "Загрузка CSV/контроль статуса")
+Rel(web, monolith, "HTTP/JSON")
+Rel(monolith, gcs, "Upload CSV")
+Rel(monolith, batch, "POST /jobs/{name}?params=...", "HTTP")
+Rel(cron, batch, "Запуск ночных job")
+Rel(batch, gcs, "Чтение CSV (stream)")
+Rel(batch, pg, "JDBC batch insert/update")
+Rel(batch, obs, "Метрики/Логи/Трейсы")
+
+@enduml
+
