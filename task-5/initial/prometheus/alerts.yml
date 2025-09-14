@@ -1,0 +1,21 @@
+groups:
+  - name: batch-processing-alerts
+    rules:
+      - alert: AppDown
+        expr: up{job="batch-processing"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Batch app is down"
+          description: "Prometheus target for batch-processing is not up"
+
+      - alert: HighErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{job="batch-processing", outcome="SERVER_ERROR"}[1m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx detected in batch app"
+          description: "Server errors observed in the last minute"
+

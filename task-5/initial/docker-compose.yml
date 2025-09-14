@@ -1,68 +1,57 @@
-version: "3.8"
-
 services:
   postgresdb:
     image: postgres
     restart: unless-stopped
-    env_file: ./.env
     environment:
-      - POSTGRES_USER=$POSTGRESDB_USER
-      - POSTGRES_PASSWORD=$POSTGRESDB_ROOT_PASSWORD
-      - POSTGRES_DB=$POSTGRESDB_DATABASE
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: productsdb
     ports:
-      - $POSTGRESDB_LOCAL_PORT:$POSTGRESDB_DOCKER_PORT
+      - "5433:5432"
+    volumes:
+      - ./db-init:/docker-entrypoint-initdb.d:ro
 
-  elasticsearch:
-    image: 'docker.elastic.co/elasticsearch/elasticsearch:7.17.28'
-    platform: linux/amd64
-    container_name: 'elasticsearch'
+  opensearch:
+    image: 'opensearchproject/opensearch:2.13.0'
+    container_name: 'opensearch'
     restart: 'unless-stopped'
     ports:
       - '9200:9200'
-      - '9300:9300'
+      - '9600:9600'
     environment:
       - 'discovery.type=single-node'
-      - 'xpack.security.enabled=false'
-      - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
+      - 'plugins.security.disabled=true'
+      - 'OPENSEARCH_INITIAL_ADMIN_PASSWORD=Sup3r$$trongP@ssw0rd_2025!'
+      - 'OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m'
     healthcheck:
       test: 'curl -f http://localhost:9200 || exit 1'
 
-  logstash:
-    image: 'docker.elastic.co/logstash/logstash:7.17.28'
-    container_name: 'logstash'
-    restart: 'unless-stopped'
-    ports:
-      - '5044:5044'
-    volumes:
-      - './logstash/pipeline:/usr/share/logstash/pipeline/'
-    depends_on:
-      - 'elasticsearch'
-    healthcheck:
-      test: 'curl -f http://localhost:9600 || exit 1'
+  # logstash removed; filebeat ships directly to OpenSearch
 
-  kibana:
-    image: 'docker.elastic.co/kibana/kibana:7.17.28'
-    container_name: 'kibana'
+  opensearch-dashboards:
+    image: 'opensearchproject/opensearch-dashboards:2.13.0'
+    container_name: 'opensearch-dashboards'
     restart: 'unless-stopped'
     ports:
       - '5601:5601'
     environment:
-      - 'ELASTICSEARCH_HOSTS=http://elasticsearch:9200'
+      - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+      - 'DISABLE_SECURITY_DASHBOARDS_PLUGIN=true'
+      - 'OPENSEARCH_USERNAME=admin'
+      - 'OPENSEARCH_PASSWORD=Sup3r$$trongP@ssw0rd_2025!'
     depends_on:
-      - 'elasticsearch'
-    healthcheck:
-      test: 'curl -f http://localhost:5601 || exit 1'
+      - 'opensearch'
 
-  filebeat:
-    build: 'filebeat'
-    container_name: 'filebeat'
+  fluent-bit:
+    image: 'fluent/fluent-bit:2.1.9'
+    container_name: 'fluent-bit'
     restart: 'unless-stopped'
     volumes:
+      - './fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro'
+      - '/var/lib/docker/containers:/var/lib/docker/containers:ro'
       - '/var/run/docker.sock:/var/run/docker.sock'
-      - '/var/lib/docker/containers:/usr/share/dockerlogs/data:ro'
     depends_on:
-      - 'elasticsearch'
-      - 'logstash'
+      - 'opensearch'
 
   prometheus:
     image: 'prom/prometheus:v3.4.0'
@@ -70,6 +59,7 @@ services:
     restart: 'unless-stopped'
     volumes:
       - './prometheus/prometheus.yml:/etc/prometheus/prometheus.yml'
+      - './prometheus/alerts.yml:/etc/prometheus/alerts.yml'
     ports:
       - '9090:9090'
     healthcheck:
@@ -93,10 +83,10 @@ services:
   app:
     depends_on:
       - postgresdb
-      - filebeat1
-      - grafana
     image: batch-processing
     build:
       context: .
       dockerfile: ./Dockerfile
     restart: no
+    ports:
+      - "8080:8080"
