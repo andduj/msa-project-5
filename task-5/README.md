@@ -1,46 +1,43 @@
-**Подсказки по подготовке окружения**
+**Подготовка окружения**
 
-1. Установите Docker и Docker Compose
-2. Для удобства просмотра кода может понадобиться:
+1. Docker Desktop с Docker Compose
+2. JDK 17 (для локальной сборки Gradle, не обязательно)
 
-   a. Установите JDK 17
-   b. Установите Gradle (или используйте встроенную в Idea)
+**Сборка приложения**
 
-   c. Установите Idea
+```
+cd task-5/initial
+./gradlew build
+```
 
-   **Сборка приложения**
+**Запуск стека мониторинга/логирования**
 
-   ```
-   ./gradlew build
-   ```
+```
+cd task-5/initial
+docker compose up -d --build
+```
 
+Авто-инициализация БД выполняется из `db-init/01_schema.sql` и `02_seed.sql`.
 
-**Создание образа**
+Сервисы и порты:
+- batch-processing: 8080 (метрики `GET /actuator/prometheus`)
+- Prometheus: 9090 (таргет scrape, алерты)
+- Grafana: 3000 (готовый дашборд `batch-processing-dashboard`)
+- OpenSearch: 9200
+- OpenSearch Dashboards: 5601 (централизованные логи)
+- Fluent Bit: tail Docker-логов → OpenSearch
 
-   ```
-   docker build . -t batch-processin
-   ```
+Prometheus читает метрики через Micrometer Prometheus Registry, алерты описаны в `prometheus/alerts.yml` (например, `AppDown`).
 
+OpenSearch Dashboards: создайте индекс‑паттерн `logstash-*` и смотрите логи контейнеров; фильтр по приложению: `container.name: "initial-app-1"`.
 
-**Запуск приложения**
+Полезные команды:
+```
+# Перезапустить только приложение
+docker compose rm -f app && docker compose up -d app
 
-   ```bash
-   docker-compose up 
-   ```
+# Смоделировать AppDown (алерт Firing)
+docker compose stop app
+```
 
-При запуске приложения необходимо создать таблицы в БД использую любой удобный клиент, используя скрипты расположенные здесь
-
-    *task-4/initial/src/main/resources/schema-all.sql*
-
-Получаемые компоненты:
-- PostgreSQL (порт 5432)(5432 host машина)
-
-
-- batch-processing
-- grafana
-- prometheus
-- filebnat
-- logstash
-- elasticsearch
-
-
+Скриншоты примеров находятся в `task-5/results/screeenshots/`.

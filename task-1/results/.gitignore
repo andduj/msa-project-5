@@ -1,0 +1,25 @@
+# Игнор артефактов сборки и IDE внутри task-1/results
+
+# Общие каталоги сборки
+**/bin/
+**/obj/
+**/logs/
+
+# IDE/решение
+.vs/
+**/.vs/
+*.user
+*.suo
+
+# Отладочные/временные файлы
+*.pdb
+*.cache
+*.log
+*.tmp
+*.DS_Store
+Thumbs.db
+
+# Пакеты/локальные артефакты
+**/packages/
+**/node_modules/
+

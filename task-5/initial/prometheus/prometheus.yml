@@ -7,6 +7,13 @@ scrape_configs:
   - job_name: 'batch-processing'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8080']
+      - targets: ['initial-app-1:8080','host.docker.internal:8080']
         labels:
           application: batch-processing
+    scheme: http
+    honor_labels: true
+    scrape_interval: 5s
+    scrape_timeout: 4s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
